@@ -1,0 +1,128 @@
+You are building “Serategna” — a production-grade, Apple-level mobile labor execution platform for Ethiopia.
+
+CORE OBJECTIVE:
+Build a full-stack system that handles:
+- Instant worker matching (under 1 second)
+- Identity verification (Fayda ID simulation layer)
+- Escrow payments (Telebirr/CBE mock integration)
+- Real-time job execution tracking
+- Reputation + labor credit scoring
+- Agent commission system
+- Government tax simulation layer
+- Offline-first mobile experience
+
+TECH STACK REQUIREMENTS:
+
+MOBILE APP:
+- React Native (Expo)
+- TypeScript
+- React Navigation
+- Zustand (state management)
+- React Query (server state)
+- WatermelonDB (offline mode)
+- i18next (multi-language)
+
+BACKEND:
+- Node.js (NestJS preferred) OR Express modular architecture
+- Go microservice (matching engine)
+- PostgreSQL (primary database)
+- Redis (real-time matching + caching)
+- WebSockets (real-time chat + tracking)
+
+ARCHITECTURE STYLE:
+- Microservices
+- API Gateway pattern
+- Event-driven system (job lifecycle events)
+- Offline-first mobile sync
+
+CORE MODULES:
+
+1. Identity Service
+- Mock Fayda verification API
+- Face verification placeholder
+- User role system (Worker / Employer / Agent)
+
+2. Matching Engine (Go service)
+- Geo-radius search
+- Skill-based ranking
+- Availability scoring
+- Returns top 3 matches < 500ms
+
+3. Escrow Service
+- Lock funds
+- Release funds on job completion
+- Split payments:
+  Worker / Platform / Agent / Tax
+
+4. Job Lifecycle Engine
+States:
+Requested → Matched → Funded → Active → Completed → Rated
+
+5. Chat Service
+- WebSockets real-time messaging
+- In-chat actions (Accept job, Fund escrow, Complete job)
+
+6. Reputation Engine
+- Labor credit score (0–1000)
+- Based on:
+  punctuality, ratings, completion rate
+
+7. Agent System
+- Worker onboarding via agents
+- Commission tracking (2%)
+
+FRONTEND REQUIREMENTS:
+
+UI STYLE:
+- Apple-level minimalism
+- High contrast + outdoor mode
+- Large touch targets
+- Color-coded states:
+  Green = success
+  Blue = active
+  Red = risk/action needed
+
+DESIGN SYSTEM:
+- Font: Inter + Noto Sans Ethiopic
+- Layout: card-based + swipe interactions
+- Motion: smooth micro-interactions (Framer Motion-like feel)
+- Offline UX: never show blank screens
+
+LOCALIZATION:
+- English
+- Amharic (አማርኛ)
+- Afaan Oromo
+- Tigrinya
+
+CORE SCREENS:
+
+Worker App:
+- Home (Job feed map)
+- Match screen (Swipe accept)
+- Active job tracker (map + SOS)
+- Profile (Trust score)
+
+Employer App:
+- Job request input (natural language)
+- Worker selection (top 3 cards)
+- Escrow funding screen
+- Job tracking dashboard
+
+Agent App:
+- Worker registration
+- Commission dashboard
+
+NON-FUNCTIONAL REQUIREMENTS:
+- Must support low-end Android devices
+- Must work on unstable 3G networks
+- Must be highly optimized (<15MB app size goal)
+- Secure authentication (OTP + biometric simulation)
+
+DELIVERABLE:
+Generate:
+1. Full project folder structure
+2. Backend services
+3. React Native app
+4. API endpoints
+5. Database schema
+6. Basic working prototype with mocked integrations

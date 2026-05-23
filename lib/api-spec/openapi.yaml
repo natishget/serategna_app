@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Serategna API for labor platform integration
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User management
+  - name: jobs
+    description: Job operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/send-otp:
+    post:
+      operationId: sendOtp
+      tags: [auth]
+      summary: Send OTP
+      description: Send OTP to phone number for authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: Phone number with country code
+                role:
+                  type: string
+                  enum: [worker, employer, agent]
+              required:
+                - phone
+                - role
+      responses:
+        "200":
+          description: OTP sent successfully
+        "400":
+          description: Invalid request
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP
+      description: Verify OTP code and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+                role:
+                  type: string
+                  enum: [worker, employer, agent]
+              required:
+                - phone
+                - otp
+                - role
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          description: Invalid OTP
+  /auth/fayda/verify:
+    post:
+      operationId: verifyFayda
+      tags: [auth]
+      summary: Verify Fayda ID
+      description: Verify Ethiopian Fayda identity
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                faydaId:
+                  type: string
+              required:
+                - faydaId
+      responses:
+        "200":
+          description: Fayda verified
+        "400":
+          description: Invalid Fayda ID
+  /jobs:
+    get:
+      operationId: getJobs
+      tags: [jobs]
+      summary: Get jobs
+      description: Retrieve jobs with optional filters
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [informal, formal, gig, short_run, contract, seasonal, professional, emergency, remote, internship, mass_hire]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [requested, matched, funded, active, completed, rated, cancelled]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Jobs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create job
+      description: Post a new job
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+  /users/workers:
+    get:
+      operationId: getWorkers
+      tags: [users]
+      summary: Get workers
+      description: Retrieve available workers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: faydaOnly
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Workers retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkerProfile"
+                  total:
+                    type: integer
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [worker, employer, agent]
+        name:
+          type: string
+        email:
+          type: string
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+            address:
+              type: string
+        trustScore:
+          type: integer
+        isVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - phone
+        - role
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        type:
+          type: string
+          enum: [informal, formal, gig, short_run, contract, seasonal, professional, emergency, remote, internship, mass_hire]
+        status:
+          type: string
+          enum: [requested, matched, funded, active, completed, rated, cancelled]
+        budget:
+          type: number
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+            address:
+              type: string
+        employerId:
+          type: string
+        employerName:
+          type: string
+        workerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - description
+        - category
+        - type
+        - status
+        - budget
+        - employerId
+    CreateJobRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        type:
+          type: string
+          enum: [informal, formal, gig, short_run, contract, seasonal, professional, emergency, remote, internship, mass_hire]
+        budget:
+          type: number
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+            address:
+              type: string
+        urgency:
+          type: string
+          enum: [flexible, normal, urgent]
+      required:
+        - title
+        - description
+        - category
+        - type
+        - budget
+        - location
+    WorkerProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        rating:
+          type: number
+        completedJobs:
+          type: integer
+        trustScore:
+          type: integer
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+            address:
+              type: string
+        hourlyRate:
+          type: number
+        isAvailable:
+          type: boolean
+      required:
+        - id
+        - name
+        - skills
+        - rating
+        - completedJobs
+        - trustScore
+        - location
+        - hourlyRate
+        - isAvailable
+

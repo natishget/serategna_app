@@ -1,0 +1,167 @@
+) SYSTEM ARCHITECTURE (HIGH LEVEL)
+                 ┌────────────────────┐
+                 │   React Native App  │
+                 │ (Worker/Employer)   │
+                 └─────────┬──────────┘
+                           │
+                     API Gateway
+                           │
+ ┌─────────────────────────┼──────────────────────────┐
+ │                         │                          │
+Identity Service     Matching Engine (Go)     Job Lifecycle Engine
+(Fayda Mock)         (Redis + Geo)            (State Machine)
+ │                         │                          │
+ └──────────────┬──────────┴────────────┬────────────┘
+                │                       │
+        Escrow Service           Chat Service (WS)
+                │
+        PostgreSQL Ledger
+                │
+      Telebirr / CBE Simulation Layer
+4) BACKEND MICROSERVICES
+Core services
+API Gateway (NestJS / Express)
+Identity Service
+Matching Engine (Go + Redis)
+Job Service (state machine)
+Payment/Escrow Service
+Chat Service (WebSockets)
+Reputation Service
+Agent Commission Service
+Database
+PostgreSQL (main ledger + users + jobs)
+Redis (real-time matching + presence layer)
+5) REACT NATIVE APP ARCHITECTURE
+Structure
+/src
+  /app
+  /features
+    /auth
+    /jobs
+    /chat
+    /wallet
+    /profile
+    /matching
+  /components
+  /services
+    api.ts
+    websocket.ts
+  /store
+    auth.store.ts
+    job.store.ts
+  /i18n
+  /theme
+  /utils
+State model
+Auth state (user role)
+Job state machine
+Wallet/escrow state
+Live location state
+Chat session state
+6) UI / UX SYSTEM (APPLE-LEVEL DESIGN)
+Design philosophy
+“Zero cognitive load”
+“One action per screen”
+“Trust-first visuals”
+Design system
+
+Typography
+
+Primary: Inter (system clean)
+Secondary: Noto Sans Ethiopic (Amharic support)
+Optional: SF Pro (iOS feel)
+
+Colors
+
+Success: Green (job completed)
+Warning: Amber
+Danger: Red (SOS / dispute)
+Neutral: Slate/White
+
+Components
+
+Job cards (swipeable)
+Trust score badge
+Map-based job tracking
+Floating SOS button
+In-chat action buttons
+
+Motion
+
+micro transitions (150–250ms)
+swipe gestures for accept/reject
+7) LOCAL LANGUAGE ARCHITECTURE (i18n)
+
+Supported:
+
+English
+አማርኛ (Amharic)
+Afaan Oromo
+ትግርኛ (Tigrinya)
+Structure
+/i18n
+  en.json
+  am.json
+  om.json
+  ti.json
+Example keys
+{
+  "job.request": "Request Job",
+  "job.accept": "Accept",
+  "wallet.balance": "Balance",
+  "sos.activate": "Emergency Alert"
+}
+
+UI auto-detects language + allows manual switch.
+
+8) CORE DATA MODEL
+Users
+id
+role (worker/employer/agent)
+fayda_id_hash
+trust_score
+Jobs
+id
+employer_id
+worker_id
+status
+price
+location
+timestamps
+Escrow
+job_id
+amount
+split_worker
+split_agent
+split_tax
+status
+Ratings
+job_id
+rating
+feedback
+9) KEY API ENDPOINTS
+Auth
+POST /auth/login
+POST /auth/verify-fayda
+Jobs
+POST /jobs/create
+GET /jobs/match
+POST /jobs/accept
+POST /jobs/complete
+Escrow
+POST /escrow/fund
+POST /escrow/release
+Chat
+WS /chat/connect
+10) REPLIT SETUP FLOW
+Create monorepo:
+/serategna
+  /mobile (Expo React Native)
+  /backend (NestJS)
+  /matching-service (Go)
+Run backend:
+npm install
+npm run start:dev
+Run mobile:
+npx expo start
+Start Redis + Postgres (Replit DB or Docker)

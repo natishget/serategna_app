@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "dNENorrNN0hYm9ZESnCfI"
+uri = "file://artifacts/serategna/assets/images/icon.png"
+type = "image"
+title = "serategna app icon"

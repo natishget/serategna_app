@@ -3,9 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@workspace/api-zod": ["../../lib/api-zod/src/index.ts"]
     }
   },
   "include": [
@@ -17,6 +16,9 @@
   "references": [
     {
       "path": "../../lib/api-client-react"
+    },
+    {
+      "path": "../../lib/api-zod"
     }
   ]
 }

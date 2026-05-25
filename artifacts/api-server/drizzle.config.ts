@@ -1,10 +1,15 @@
 import { defineConfig } from "drizzle-kit";
+import "dotenv/config";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required");
+}
 
 export default defineConfig({
   dialect: "postgresql",
   schema: "./src/schema/index.ts", // Path to your schema file
-  out: "./drizzle",            // Where your migrations will be saved
+  out: "./drizzle", // Where your migrations will be saved
   dbCredentials: {
-    url: "postgresql://postgres.jkdibbjmhpatadjinbbb:PBer9SsjGJ2eFf*@aws-1-eu-central-1.pooler.supabase.com:6543/postgres",
+    url: process.env.DATABASE_URL,
   },
 });

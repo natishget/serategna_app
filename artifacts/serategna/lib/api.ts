@@ -1,6 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import {
+  clearStoredSession,
+  getStoredApiKey,
+  getStoredToken,
+  setStoredToken,
+} from "./session";
 
 const DEFAULT_API_PORT = process.env.EXPO_PUBLIC_API_PORT?.trim() || "8080";
 const LOCAL_HOST_PATTERN = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i;
@@ -37,9 +42,7 @@ function extractHost(value: string | null | undefined): string | null {
 
   try {
     const url = new URL(
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-        ? trimmed
-        : `http://${trimmed}`,
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`,
     );
     return url.hostname || null;
   } catch {
@@ -81,9 +84,8 @@ function resolveBaseUrl(): string {
   }
 
   if (Platform.OS === "web") {
-    const browserOrigin = (
-      globalThis as { location?: { origin?: string } }
-    ).location?.origin;
+    const browserOrigin = (globalThis as { location?: { origin?: string } })
+      .location?.origin;
     if (browserOrigin) {
       return `${trimTrailingSlash(browserOrigin)}/api`;
     }
@@ -99,17 +101,18 @@ function resolveBaseUrl(): string {
 
 const BASE_URL = resolveBaseUrl();
 
-const TOKEN_KEY = "serategna_token";
-const API_KEY_STORAGE = "serategna_api_key";
-
 export async function getToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  return getStoredToken();
 }
 export async function setToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await setStoredToken(token);
 }
 export async function clearToken(): Promise<void> {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await clearStoredSession();
+}
+
+export async function clearSession(): Promise<void> {
+  await clearStoredSession();
 }
 
 async function request<T>(
@@ -118,10 +121,15 @@ async function request<T>(
   body?: unknown,
   authenticated = true,
 ): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
 
   if (authenticated) {
-    const [token, apiKey] = await Promise.all([getToken(), AsyncStorage.getItem(API_KEY_STORAGE)]);
+    const [token, apiKey] = await Promise.all([
+      getStoredToken(),
+      getStoredApiKey(),
+    ]);
     if (apiKey) headers["X-API-Key"] = apiKey;
     else if (token) headers["Authorization"] = `Bearer ${token}`;
   }
@@ -134,7 +142,9 @@ async function request<T>(
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
-    throw Object.assign(new Error(err.error ?? "Request failed"), { status: resp.status });
+    throw Object.assign(new Error(err.error ?? "Request failed"), {
+      status: resp.status,
+    });
   }
 
   return resp.json() as Promise<T>;
@@ -143,50 +153,88 @@ async function request<T>(
 export const api = {
   // ─── Auth ──────────────────────────────────────────────────────────────────
   sendOtp: (phone: string) =>
-    request<{ success: boolean; code?: string }>("POST", "/auth/otp/send", { phone }, false),
+    request<{ success: boolean; code?: string; existingUser: boolean }>(
+      "POST",
+      "/auth/otp/send",
+      { phone },
+      false,
+    ),
 
   verifyOtp: (phone: string, code: string, role: string, name?: string) =>
-    request<{ token: string; user: UserProfile }>("POST", "/auth/otp/verify", { phone, code, role, name }, false),
+    request<{ token: string; user: UserProfile; isNewUser: boolean }>(
+      "POST",
+      "/auth/otp/verify",
+      { phone, code, role, name },
+      false,
+    ),
 
   verifyFayda: (faydaId: string) =>
-    request<{ success: boolean; user: UserProfile }>("POST", "/auth/fayda/verify", { faydaId }),
+    request<{ success: boolean; user: UserProfile }>(
+      "POST",
+      "/auth/fayda/verify",
+      { faydaId },
+    ),
 
   getMe: () => request<{ user: UserProfile }>("GET", "/auth/me"),
 
-  logout: () => request<{ success: boolean }>("POST", "/auth/logout"),
+  logout: () =>
+    request<{ success: boolean }>("POST", "/auth/logout", undefined, false),
 
   // ─── Users ─────────────────────────────────────────────────────────────────
-  updateProfile: (updates: Partial<UserProfile> & {
-    employerType?: EmployerType;
-    orgName?: string;
-    orgLicense?: string;
-    massHireQuota?: number;
-    ministryCode?: MinistryCode;
-  }) => request<{ user: UserProfile }>("PATCH", "/users/me", updates),
+  updateProfile: (
+    updates: Partial<UserProfile> & {
+      employerType?: EmployerType;
+      orgName?: string;
+      orgLicense?: string;
+      massHireQuota?: number;
+      ministryCode?: MinistryCode;
+    },
+  ) => request<{ user: UserProfile }>("PATCH", "/users/me", updates),
 
   generateApiKey: () =>
-    request<{ data: { apiKey: string }; message: string }>("POST", "/users/me/api-key", {}),
+    request<{ data: { apiKey: string }; message: string }>(
+      "POST",
+      "/users/me/api-key",
+      {},
+    ),
 
-  getWorkers: (params?: { category?: string; q?: string; faydaOnly?: boolean; page?: number; limit?: number }) => {
+  getWorkers: (params?: {
+    category?: string;
+    q?: string;
+    faydaOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }) => {
     const p = new URLSearchParams();
     if (params?.category) p.set("category", params.category);
     if (params?.q) p.set("q", params.q);
-    if (params?.faydaOnly !== undefined) p.set("faydaOnly", String(params.faydaOnly));
+    if (params?.faydaOnly !== undefined)
+      p.set("faydaOnly", String(params.faydaOnly));
     if (params?.page) p.set("page", String(params.page));
     if (params?.limit) p.set("limit", String(params.limit));
-    return request<PaginatedResponse<WorkerProfile> & { workers: WorkerProfile[] }>("GET", `/users/workers?${p}`);
+    return request<
+      PaginatedResponse<WorkerProfile> & { workers: WorkerProfile[] }
+    >("GET", `/users/workers?${p}`);
   },
 
-  getEmployers: (params?: { employerType?: EmployerType; ministryCode?: string; q?: string; page?: number }) => {
+  getEmployers: (params?: {
+    employerType?: EmployerType;
+    ministryCode?: string;
+    q?: string;
+    page?: number;
+  }) => {
     const p = new URLSearchParams();
     if (params?.employerType) p.set("employerType", params.employerType);
     if (params?.ministryCode) p.set("ministryCode", params.ministryCode);
     if (params?.q) p.set("q", params.q);
     if (params?.page) p.set("page", String(params.page));
-    return request<PaginatedResponse<EmployerProfile> & { employers: EmployerProfile[] }>("GET", `/users/employers?${p}`);
+    return request<
+      PaginatedResponse<EmployerProfile> & { employers: EmployerProfile[] }
+    >("GET", `/users/employers?${p}`);
   },
 
-  getUser: (id: string) => request<{ user: UserProfile }>("GET", `/users/${id}`),
+  getUser: (id: string) =>
+    request<{ user: UserProfile }>("GET", `/users/${id}`),
 
   // ─── Jobs ──────────────────────────────────────────────────────────────────
   getJobs: (params?: JobFilterParams) => {
@@ -195,30 +243,54 @@ export const api = {
     if (params?.category) p.set("category", params.category);
     if (params?.status) p.set("status", params.status);
     if (params?.urgency) p.set("urgency", params.urgency);
-    if (params?.isRemote !== undefined) p.set("isRemote", String(params.isRemote));
+    if (params?.isRemote !== undefined)
+      p.set("isRemote", String(params.isRemote));
     if (params?.page) p.set("page", String(params.page));
     if (params?.limit) p.set("limit", String(params.limit));
-    return request<PaginatedResponse<JobData> & { jobs: JobData[] }>("GET", `/jobs?${p}`);
+    return request<PaginatedResponse<JobData> & { jobs: JobData[] }>(
+      "GET",
+      `/jobs?${p}`,
+    );
   },
 
-  createJob: (data: CreateJobInput) => request<{ data: JobData; job: JobData }>("POST", "/jobs", data),
+  createJob: (data: CreateJobInput) =>
+    request<{ data: JobData; job: JobData }>("POST", "/jobs", data),
 
   bulkCreateJobs: (jobs: CreateJobInput[]) =>
-    request<{ data: JobData[]; meta: { created: number } }>("POST", "/jobs/bulk", { jobs }),
+    request<{ data: JobData[]; meta: { created: number } }>(
+      "POST",
+      "/jobs/bulk",
+      { jobs },
+    ),
 
-  getJob: (id: string) => request<{ data: JobData; job: JobData }>("GET", `/jobs/${id}`),
+  getJob: (id: string) =>
+    request<{ data: JobData; job: JobData }>("GET", `/jobs/${id}`),
 
-  acceptJob: (id: string) => request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/accept`, {}),
+  acceptJob: (id: string) =>
+    request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/accept`, {}),
 
   fundEscrow: (id: string, method: PaymentMethod) =>
-    request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/fund-escrow`, { method }),
+    request<{ data: JobData; job: JobData }>(
+      "POST",
+      `/jobs/${id}/fund-escrow`,
+      { method },
+    ),
 
-  startJob: (id: string) => request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/start`, {}),
+  startJob: (id: string) =>
+    request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/start`, {}),
 
-  completeJob: (id: string) => request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/complete`, {}),
+  completeJob: (id: string) =>
+    request<{ data: JobData; job: JobData }>(
+      "POST",
+      `/jobs/${id}/complete`,
+      {},
+    ),
 
   rateJob: (id: string, score: number, feedback?: string) =>
-    request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/rate`, { score, feedback }),
+    request<{ data: JobData; job: JobData }>("POST", `/jobs/${id}/rate`, {
+      score,
+      feedback,
+    }),
 
   // ─── Disputes ──────────────────────────────────────────────────────────────
   createDispute: (data: CreateDisputeInput) =>
@@ -228,41 +300,108 @@ export const api = {
 
   // ─── Finance ───────────────────────────────────────────────────────────────
   getFinanceProducts: () =>
-    request<{ trustScore: number; products: FinanceProduct[]; eligibleCount: number }>("GET", "/finance/products"),
+    request<{
+      trustScore: number;
+      products: FinanceProduct[];
+      eligibleCount: number;
+    }>("GET", "/finance/products"),
 
   applyForLoan: (productId: string, requestedAmount: number) =>
-    request<{ success: boolean; referenceId: string; message: string }>("POST", "/finance/apply", { productId, requestedAmount }),
+    request<{ success: boolean; referenceId: string; message: string }>(
+      "POST",
+      "/finance/apply",
+      { productId, requestedAmount },
+    ),
 
   // ─── Chat ──────────────────────────────────────────────────────────────────
   getChatRooms: () => request<{ rooms: ChatRoomData[] }>("GET", "/chat/rooms"),
 
-  getMessages: (roomId: string) => request<{ messages: ChatMessageData[] }>("GET", `/chat/rooms/${roomId}/messages`),
+  getMessages: (roomId: string) =>
+    request<{ messages: ChatMessageData[] }>(
+      "GET",
+      `/chat/rooms/${roomId}/messages`,
+    ),
 
   sendMessage: (roomId: string, content: string, type = "text") =>
-    request<{ message: ChatMessageData }>("POST", `/chat/rooms/${roomId}/messages`, { content, type }),
+    request<{ message: ChatMessageData }>(
+      "POST",
+      `/chat/rooms/${roomId}/messages`,
+      { content, type },
+    ),
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type EmployerType = "individual" | "company" | "mass_hire" | "vip" | "ministry" | "ngo" | "startup";
+export type EmployerType =
+  | "individual"
+  | "company"
+  | "mass_hire"
+  | "vip"
+  | "ministry"
+  | "ngo"
+  | "startup";
 
 export type JobType =
-  | "informal" | "formal" | "gig" | "short_run" | "contract"
-  | "seasonal" | "professional" | "emergency" | "remote"
-  | "internship" | "mass_hire";
+  | "informal"
+  | "formal"
+  | "gig"
+  | "short_run"
+  | "contract"
+  | "seasonal"
+  | "professional"
+  | "emergency"
+  | "remote"
+  | "internship"
+  | "mass_hire";
 
 export type JobCategory =
-  | "plumbing" | "electrical" | "construction" | "carpentry" | "welding" | "painting"
-  | "cleaning" | "cooking" | "gardening" | "moving" | "childcare" | "eldercare"
-  | "driving" | "delivery" | "logistics"
-  | "security" | "bodyguard"
-  | "it_tech" | "finance_admin" | "legal" | "healthcare" | "education" | "engineering"
-  | "agriculture" | "livestock" | "fishing"
-  | "hospitality" | "retail" | "events"
-  | "arts_media" | "tailoring" | "hairdressing"
-  | "manufacturing" | "other";
+  | "plumbing"
+  | "electrical"
+  | "construction"
+  | "carpentry"
+  | "welding"
+  | "painting"
+  | "cleaning"
+  | "cooking"
+  | "gardening"
+  | "moving"
+  | "childcare"
+  | "eldercare"
+  | "driving"
+  | "delivery"
+  | "logistics"
+  | "security"
+  | "bodyguard"
+  | "it_tech"
+  | "finance_admin"
+  | "legal"
+  | "healthcare"
+  | "education"
+  | "engineering"
+  | "agriculture"
+  | "livestock"
+  | "fishing"
+  | "hospitality"
+  | "retail"
+  | "events"
+  | "arts_media"
+  | "tailoring"
+  | "hairdressing"
+  | "manufacturing"
+  | "other";
 
-export type MinistryCode = "MoLSA" | "MoE" | "MoF" | "MoH" | "MoA" | "MoT" | "MoI" | "MoD" | "MoJ" | "MoWIE" | "other";
+export type MinistryCode =
+  | "MoLSA"
+  | "MoE"
+  | "MoF"
+  | "MoH"
+  | "MoA"
+  | "MoT"
+  | "MoI"
+  | "MoD"
+  | "MoJ"
+  | "MoWIE"
+  | "other";
 
 export type PaymentMethod = "telebirr" | "cbe" | "bank_transfer" | "cash";
 

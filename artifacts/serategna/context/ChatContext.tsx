@@ -1,5 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { useAuth } from "./AuthContext";
 
 export interface ChatMessage {
   id: string;
@@ -93,8 +99,16 @@ const MOCK_ROOMS: ChatRoom[] = [
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>(MOCK_ROOMS);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setRooms([]);
+      setActiveRoomId(null);
+    }
+  }, [isAuthenticated]);
 
   const activeRoom = rooms.find((r) => r.id === activeRoomId) || null;
   const totalUnread = rooms.reduce((sum, r) => sum + r.unreadCount, 0);
@@ -104,9 +118,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setRooms((prev) =>
       prev.map((r) =>
         r.id === roomId
-          ? { ...r, unreadCount: 0, messages: r.messages.map((m) => ({ ...m, read: true })) }
-          : r
-      )
+          ? {
+              ...r,
+              unreadCount: 0,
+              messages: r.messages.map((m) => ({ ...m, read: true })),
+            }
+          : r,
+      ),
     );
   }, []);
 
@@ -121,36 +139,52 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     };
     setRooms((prev) =>
       prev.map((r) =>
-        r.id === roomId ? { ...r, messages: [...r.messages, msg], lastMessage: msg } : r
-      )
+        r.id === roomId
+          ? { ...r, messages: [...r.messages, msg], lastMessage: msg }
+          : r,
+      ),
     );
   }, []);
 
-  const sendAction = useCallback((roomId: string, action: ChatMessage["action"]) => {
-    const actionLabels: Record<string, string> = {
-      accept_job: "Job accepted",
-      fund_escrow: "Payment secured in escrow",
-      complete_job: "Job marked complete",
-      sos: "EMERGENCY ALERT sent",
-    };
-    const msg: ChatMessage = {
-      id: `m-${Date.now()}`,
-      senderId: "current-user",
-      senderName: "You",
-      action,
-      text: actionLabels[action ?? ""] ?? "",
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
-    setRooms((prev) =>
-      prev.map((r) =>
-        r.id === roomId ? { ...r, messages: [...r.messages, msg], lastMessage: msg } : r
-      )
-    );
-  }, []);
+  const sendAction = useCallback(
+    (roomId: string, action: ChatMessage["action"]) => {
+      const actionLabels: Record<string, string> = {
+        accept_job: "Job accepted",
+        fund_escrow: "Payment secured in escrow",
+        complete_job: "Job marked complete",
+        sos: "EMERGENCY ALERT sent",
+      };
+      const msg: ChatMessage = {
+        id: `m-${Date.now()}`,
+        senderId: "current-user",
+        senderName: "You",
+        action,
+        text: actionLabels[action ?? ""] ?? "",
+        timestamp: new Date().toISOString(),
+        read: true,
+      };
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === roomId
+            ? { ...r, messages: [...r.messages, msg], lastMessage: msg }
+            : r,
+        ),
+      );
+    },
+    [],
+  );
 
   return (
-    <ChatContext.Provider value={{ rooms, activeRoom, openRoom, sendMessage, sendAction, totalUnread }}>
+    <ChatContext.Provider
+      value={{
+        rooms,
+        activeRoom,
+        openRoom,
+        sendMessage,
+        sendAction,
+        totalUnread,
+      }}
+    >
       {children}
     </ChatContext.Provider>
   );
